@@ -3,12 +3,12 @@ from streamlit_sortables import sort_items
 import random
 
 # --- 1. 기본 설정 ---
-# 웹사이트 제목과 아이콘, 레이아웃 설정
+# 웹사이트 제목, 아이콘, 레이아웃 설정
 st.set_page_config(page_title="국어 지문 순서 맞추기", page_icon="📖", layout="wide")
 
 # --- 2. 제목 및 안내 문구 ---
 st.title("🧩 국어 지문 드래그 앤 드롭 퀴즈")
-st.info("아래 텍스트 박스에 지문을 입력한 후, 섞여 있는 문장을 마우스로 끌어서 원래 순서대로 맞춰보세요!", icon="💡")
+st.info("지문을 입력한 후, 섞여 있는 문장을 마우스로 끌어서 원래 순서대로 배열해 보세요!", icon="💡")
 
 # --- 3. 사이드바 설정 (색상 선택, 새로 섞기) ---
 with st.sidebar:
@@ -18,10 +18,13 @@ with st.sidebar:
     
     # '새로 섞기' 버튼
     if st.button("🔄 새로 섞기", use_container_width=True):
-        # session_state에서 'sentences_data'를 삭제하여 문장을 다시 섞도록 함
+        # 'sentences_data'를 삭제하여 문장을 다시 섞도록 함
         if 'sentences_data' in st.session_state:
             del st.session_state['sentences_data']
-        st.experimental_rerun()
+        # 'text_input_area'의 내용도 초기화될 수 있으므로, 키를 함께 관리
+        if 'text_input_area' in st.session_state:
+            del st.session_state['text_input_area']
+        st.rerun()
 
 st.divider()
 
@@ -32,17 +35,20 @@ text_input = st.text_area(
     "교과서 지문을 복사해서 넣어주세요:",
     default_text,
     height=150,
-    key="text_input_area"
+    key="text_input_area" # 입력창의 상태를 유지하기 위한 고유 키
 )
 
 # --- 5. 문장 처리 및 섞기 로직 ---
+# 지문이 입력되었을 때만 아래 로직 실행
 if text_input:
-    # 지문이 변경되거나, 섞인 데이터가 없으면 새로 생성
-    if 'sentences_data' not in st.session_state:
-        # 원본 문장 순서 저장 (정답 비교용)
+    # 지문이 바뀌었거나, 섞인 데이터가 없으면 새로 생성
+    if 'sentences_data' not in st.session_state or st.session_state.get('current_text') != text_input:
+        st.session_state.current_text = text_input # 현재 지문을 기록
+        
+        # 원본 문장 순서 저장 (정답 비교용, 마침표 제거)
         original_sentences = [s.strip() for s in text_input.split('.') if s.strip()]
         
-        # 섞을 문장 데이터 생성 (화면 표시용)
+        # 섞을 문장 데이터 생성
         shuffled_sentences = original_sentences[:]
         random.shuffle(shuffled_sentences)
         
@@ -56,18 +62,16 @@ if text_input:
     st.subheader("2. 문장을 끌어서 순서를 바꾸세요")
 
     # 화면에 표시될 아이템 생성 (색상 적용된 HTML 태그 포함)
-    # 이렇게 해야 색상도 보이고, 나중에 정답 비교도 가능합니다.
     items_to_display = [
         {
             'label': f'<p style="color:{selected_color}; font-size: 16px; margin: 5px 0;">{sentence}.</p>',
-            'original_sentence': sentence # HTML 태그가 없는 원본 문장
+            'original_sentence': sentence # HTML 태그가 없는 원본 문장 (정답 비교용)
         }
         for sentence in st.session_state.sentences_data['shuffled']
     ]
 
-    # sort_items: 사용자가 드래그 앤 드롭으로 정렬한 결과
-    # key='label'을 통해 화면에는 색상이 적용된 HTML 문장을 보여줍니다.
-    sorted_result_data = sort_items(items_to_display, key='label', direction='vertical')
+    # sort_items에 고유한 key를 부여하여 안정성 향상
+    sorted_result_data = sort_items(items_to_display, key='sortable_list', direction='vertical')
 
     st.divider()
 
